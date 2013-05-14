@@ -2,69 +2,55 @@
 #include <vector>
 #include <string>
 #include <sstream>
+#include <climits>
 
 using namespace std;
 
-void printOptimalParens(vector<int>** index, int i, int j, vector<string>* results, int resultNum, bool printOut){
+void printOptimalParens(vector<int>** index, int i, int j, int* undiscoveredPath, int* path, int* level, string* results){
 	if (i == j){
 		stringstream ss;
 		ss << i;
-		results->at(resultNum).append("A" + ss.str());
+		results->append("A" + ss.str());
 	}
 	else{
-		string origString = results->at(resultNum);
-		for (int l = 0; l < index[i][j].size(); l++){
-		// for (int l = 0; l < 1; l++){
-			if (l == 0){
-				results->at(resultNum).append("(");
-				printOptimalParens(index, i, index[i][j][l], results, resultNum, false);
-				printOptimalParens(index, index[i][j][l] + 1, j, results, resultNum, false);
-				results->at(resultNum).append(")");
-			}
-			else{
-				int newResultNum;
-				string tempString = origString;
-				newResultNum = results->size();
-				results->push_back(tempString);
-				results->at(newResultNum).append("(");
-				printOptimalParens(index, i, index[i][j][l], results, newResultNum, false);
-				printOptimalParens(index, index[i][j][l] + 1, j, results, newResultNum, false);
-				results->at(newResultNum).append(")");
-			}
+		int tempLevel = ++(*level);
+		results->append("(");
+		if (index[i][j].size() - 1 > path[tempLevel]){
+			undiscoveredPath[0] = tempLevel;
+			undiscoveredPath[1] = path[tempLevel] + 1;
 		}
-	}
-
-	if (printOut){
-		for (int i = 0; i < results->size(); i++)
-			cout << results->at(i) << endl;
+		printOptimalParens(index, i, index[i][j][path[tempLevel]], undiscoveredPath, path, level, results);
+		printOptimalParens(index, index[i][j][path[tempLevel]] + 1, j, undiscoveredPath, path, level, results);
+		results->append(")");
 	}
 }
 
 void mcm(const vector<int>& p){
 	int numOfArrays = p.size() - 1;
-	int** multiplications = new int*[numOfArrays + 1];
-	vector<int>**  index = new vector<int>*[numOfArrays + 1]();
+	int** multiplications = new int*[numOfArrays + 1]; //saves the number of multiplicationsto multiply the matrixes
+	vector<int>**  index = new vector<int>*[numOfArrays + 1](); // where to do the multiplication first
 	for (int i = 0; i <= numOfArrays; i++){
 		multiplications[i] = new int[numOfArrays + 1];
 		index[i] = new vector<int>[numOfArrays + 1]();
 	}
 
+	// just the algorithm from the text book
 	for (int i = 1; i <= numOfArrays; i++)
 		multiplications[i][i] = 0;
 	for (int length = 2; length <= numOfArrays; length++){
 		for (int i = 1; i <= numOfArrays - length + 1; i++){
 			int j = i + length - 1;
-			multiplications[i][j] = 99999999;
+			multiplications[i][j] = INT_MAX;//99999999;
 
+			// do the calculation as usual, but instead of recording one best solution, save the number of multiplications down of each cut for later use
 			int* multiplicationRecord = new int[j - i];
 			for (int k = i; k <= j - 1; k++){
 				int temp = multiplications[i][k] + multiplications[k + 1][j] + p[i - 1] * p[k] * p[j];
 				multiplicationRecord[k - i] = temp;
-				if (temp < multiplications[i][j]){
+				if (temp < multiplications[i][j])
 					multiplications[i][j] = temp;
-					// index[i][j].push_back(k);
-				}
 			}
+			// run through the saved data and add those that fits in the solution
 			for (int k = i; k <= j - 1; k++){
 				if (multiplicationRecord[k - i] == multiplications[i][j])
 					index[i][j].push_back(k);
@@ -73,29 +59,28 @@ void mcm(const vector<int>& p){
 		}
 	}
 
-	cout << multiplications[1][numOfArrays] << endl;
+	cout << multiplications[1][numOfArrays] << " scalar multiplications" << endl;
 
-	// for (int i = 1; i <= numOfArrays; i++){
-	// 	for (int j = i; j <= numOfArrays; j++)
-	// 		cout << multiplications[i][j] << ' ';
-	// 	cout << endl;
-	// }
-	// cout << endl;
-	for (int i = 1; i <= numOfArrays; i++){
-		for (int j = i; j <= numOfArrays; j++){
-			for (int k = 0; k < index[i][j].size(); k++)
-				cout << index[i][j][k] << ", ";
-			cout << "; ";
-		}
-		cout << endl;
-	}
+	int undiscoveredPath[2] = {0}; // records the undiscovered route with : {level, new path}
+	int numOfOptimalWays = 0, level;
+	int* path = new int[numOfArrays]; // records the route of the next walk
+	string results = "";
+	for (int i = 0; i < numOfArrays; i++)
+		path[i] = 0;
+	do {
+		numOfOptimalWays++;
+		level = -1;
+		path[undiscoveredPath[0]] = undiscoveredPath[1];
+		for (int i = undiscoveredPath[0] + 1; i < numOfArrays; i++)
+			path[i] = 0;
+		undiscoveredPath[0] = -1;
+		printOptimalParens(index, 1, numOfArrays, undiscoveredPath, path, &level, &results);
+		results.append("\n");
+	} while (undiscoveredPath[0] != -1);
+	cout << numOfOptimalWays << " optimal ways to multiply" << endl;
+	cout << results << endl;
 
-	vector<string>* results = new vector<string>();
-	// results->push_back(new string());
-	results->push_back("");
-	printOptimalParens(index, 1, numOfArrays, results, 0, true);
-	delete results;
-
+	delete [] path;
 	for (int i = 0; i < numOfArrays; i++){
 		delete [] multiplications[i];
 		delete [] index[i];
@@ -108,7 +93,6 @@ void testing_mcm(const vector<int>& p){
 	static int test = 0;
 	cout << "Test " << ++test << " ..." << endl;
 	mcm(p);
-	cout << endl;
 }
 
 int main(){
@@ -140,10 +124,8 @@ Test 3  ...
 (A1((A2A3)(A4((A5A6)A7))))
 (A1(((A2A3)A4)(A5(A6A7))))
 (A1(((A2A3)A4)((A5A6)A7)))
-
 ((A1(A2A3))(A4(A5(A6A7))))
 ((A1(A2A3))(A4((A5A6)A7)))
-
 ((A1((A2A3)A4))(A5(A6A7)))
 ((A1((A2A3)A4))((A5A6)A7))
 (((A1(A2A3))A4)(A5(A6A7)))
